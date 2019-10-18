@@ -6,6 +6,11 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
+numpy = "*"
+pandas = "*"
+torch = "*"
+scikit-learn = "*"
+
 
 [requires]
 python_version = "3.7"
