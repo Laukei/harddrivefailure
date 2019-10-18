@@ -1,4 +1,74 @@
+import numpy as np
+import pandas as pd
+import torch
+from sklearn import preprocessing
+from sklearn.model_selection import train_test_split
+
+
+DATASET_FILENAME = 'harddrive.csv'
+TESTING = True if __name__ == "__main__" else False
+
+MANUFACTURERS = {'HG':'HGST',
+                 'Hi':'Hitachi',
+                 'SA':'Samsung',
+                 'ST':'Seagate',
+                 'TO':'Toshiba',
+                 'WD':'Western Digital'}
+
+KNOWN_INDICATIVE_COLUMNS = ['smart_5_raw','smart_10_raw','smart_184_raw','smart_187_raw',
+                            'smart_188_raw','smart_196_raw','smart_197_raw','smart_198_raw',
+                            'smart_201_raw']
+
+
+def get_data(filename=DATASET_FILENAME):
+    df = pd.read_csv(filename,parse_dates=['date'],nrows=None if TESTING else None)
+    print('read data, processing...')
+
+    #adding manufacturer info to data
+    conditions = [df['model'].str[:2] == mfr for mfr in sorted(MANUFACTURERS.keys())]
+    outputs  = [MANUFACTURERS[key] for key in sorted(MANUFACTURERS.keys())]
+    res = np.select(conditions,outputs,'unknown')
+    df['manufacturer'] = pd.Series(res)
+
+    #showing summed failures by manufacturer
+    grouped = df.groupby(['manufacturer'])#,'serial_number'])
+    #print(grouped.failure.sum())
+
+    #adding failure information per serial number
+    grouped = df.groupby(['serial_number'])
+    failing_serial_numbers = df.loc[df['failure'] == 1]['serial_number']
+    df['will_fail'] = df['serial_number'].isin(failing_serial_numbers)
+    #print(len(df.loc[df['will_fail']==True]))
+
+    # remove data from serial numbers with non-unique dates
+    # (possibly not necessary)
+    #g.filter(lambda x: x.date.is_unique) #remove
+
+    reduced_df = df[['failure','model','manufacturer'] + KNOWN_INDICATIVE_COLUMNS]
+    reduced_df = reduced_df.fillna(-0.5) # give numeric value to NaN
+
+    return reduced_df
+
+def preprocess_data(df):
+    print('feature encoding')
+    features = ['failure','model','manufacturer']
+    for feature in features:
+        le = preprocessing.LabelEncoder()
+        le = le.fit(df[feature])
+        df[feature] = le.transform(df[feature])
+
+    X_train, X_test, y_train, y_test = train_test_split(df.drop(['failure'],axis=1), df['failure'], test_size=0.1)
+    return X_train, X_test, y_train, y_test
+
+def to_tensor(data):
+    return torch.Tensor(np.array(pd.DataFrame(data)))
+
+if __name__ == "__main__":
+    get_data()
+
 '''
+Notes:
+
 smart_1 Read Error Rate (want low)
 smart_2 Throughput performance (want high)
 smart_3 Spin up time (want low)
@@ -46,54 +116,3 @@ smart_254 Free fall events (want low)
 smart_255 unknown
 
 '''
-
-import numpy as np
-import pandas as pd
-
-DATASET_FILENAME = 'harddrive.csv'
-TESTING = True if __name__ == "__main__" else False
-
-MANUFACTURERS = {'HG':'HGST',
-                 'Hi':'Hitachi',
-                 'SA':'Samsung',
-                 'ST':'Seagate',
-                 'TO':'Toshiba',
-                 'WD':'Western Digital'}
-
-KNOWN_INDICATIVE_COLUMNS = ['smart_5_raw','smart_10_raw','smart_184_raw','smart_187_raw',
-                            'smart_188_raw','smart_196_raw','smart_197_raw','smart_198_raw',
-                            'smart_201_raw']
-
-
-def get_data(filename=DATASET_FILENAME):
-    df = pd.read_csv(filename,parse_dates=['date'],nrows=None if TESTING else None)
-    print('read data, processing...')
-
-    #adding manufacturer info to data
-    conditions = [df['model'].str[:2] == mfr for mfr in sorted(MANUFACTURERS.keys())]
-    outputs  = [MANUFACTURERS[key] for key in sorted(MANUFACTURERS.keys())]
-    res = np.select(conditions,outputs,'unknown')
-    df['manufacturer'] = pd.Series(res)
-
-    #showing summed failures by manufacturer
-    grouped = df.groupby(['manufacturer'])#,'serial_number'])
-    print(grouped.failure.sum())
-
-    #adding failure information per serial number
-    grouped = df.groupby(['serial_number'])
-    failing_serial_numbers = df.loc[df['failure'] == 1]['serial_number']
-    df['will_fail'] = df['serial_number'].isin(failing_serial_numbers)
-    print(len(df.loc[df['will_fail']==True]))
-
-    # remove data from serial numbers with non-unique dates
-    # (possibly not necessary)
-    #g.filter(lambda x: x.date.is_unique) #remove
-
-    reduced_df = df[['will_fail','model','manufacturer'] + KNOWN_INDICATIVE_COLUMNS]
-    reduced_df = reduced_df.fillna(-0.5) # give numeric value to NaN
-
-    return reduced_df
-
-
-if __name__ == "__main__":
-    get_data()
