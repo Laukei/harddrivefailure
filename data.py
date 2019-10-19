@@ -19,6 +19,11 @@ KNOWN_INDICATIVE_COLUMNS = ['smart_5_raw','smart_10_raw','smart_184_raw','smart_
                             'smart_188_raw','smart_196_raw','smart_197_raw','smart_198_raw',
                             'smart_201_raw']
 
+def calc_weeks_to_failure(s):
+    s = s.reset_index(drop=True)
+    one = s[s.eq(1)]
+    if one.empty: return -1
+    return (-s.index + one.index[0])//7
 
 def get_data(filename=DATASET_FILENAME):
     df = pd.read_csv(filename,parse_dates=['date'],nrows=None if TESTING else None)
@@ -34,30 +39,33 @@ def get_data(filename=DATASET_FILENAME):
     grouped = df.groupby(['manufacturer'])#,'serial_number'])
     #print(grouped.failure.sum())
 
+
     #adding failure information per serial number
-    grouped = df.groupby(['serial_number'])
-    failing_serial_numbers = df.loc[df['failure'] == 1]['serial_number']
-    df['will_fail'] = df['serial_number'].isin(failing_serial_numbers)
-    #print(len(df.loc[df['will_fail']==True]))
+    df['weeks_to_failure'] = df.groupby('serial_number').failure.transform(calc_weeks_to_failure)
 
     # remove data from serial numbers with non-unique dates
     # (possibly not necessary)
     #g.filter(lambda x: x.date.is_unique) #remove
 
-    reduced_df = df[['failure','model','manufacturer'] + KNOWN_INDICATIVE_COLUMNS]
+    reduced_df = df[['weeks_to_failure','model','manufacturer'] + KNOWN_INDICATIVE_COLUMNS]
     reduced_df = reduced_df.fillna(-0.5) # give numeric value to NaN
 
     return reduced_df
 
 def preprocess_data(df):
     print('feature encoding')
-    features = ['failure','model','manufacturer']
+    features = ['model','manufacturer']
     for feature in features:
         le = preprocessing.LabelEncoder()
         le = le.fit(df[feature])
         df[feature] = le.transform(df[feature])
 
-    X_train, X_test, y_train, y_test = train_test_split(df.drop(['failure'],axis=1), df['failure'], test_size=0.1)
+    enc = preprocessing.OneHotEncoder(categories='auto')
+    weeks_to_failure = np.array(df['weeks_to_failure']).reshape(-1,1)
+    enc.fit_transform(np.array(weeks_to_failure))
+    df['weeks_to_failure'] = weeks_to_failure
+
+    X_train, X_test, y_train, y_test = train_test_split(df.drop(['weeks_to_failure'],axis=1), df['weeks_to_failure'], test_size=0.1)
     return X_train, X_test, y_train, y_test
 
 def to_tensor(data):

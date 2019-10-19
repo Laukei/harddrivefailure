@@ -6,8 +6,9 @@ import torch.nn.functional as F
 class Net(nn.Module):
     def __init__(self):
         super().__init__()
+        self.output_size = 9
         self.fc1 = nn.Linear(11,10)
-        self.fc2 = nn.Linear(10,2)
+        self.fc2 = nn.Linear(10,self.output_size)
 
     def forward(self, X):
         X = torch.sigmoid(self.fc1(X))
@@ -16,10 +17,7 @@ class Net(nn.Module):
 
     def predict(self, X):
         pred = F.softmax(self.forward(X))
-        ans = []
-        for t in pred:
-            if t[0] > t[1]:
-                ans.append(0)
-            else:
-                ans.append(1)
+        ans = torch.zeros(pred.shape)
+        for row in zip(pred.argmax(dim=1),pred):
+            row[1][row[0]] = 1
         return torch.tensor(ans)
