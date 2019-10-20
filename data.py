@@ -4,9 +4,7 @@ import torch
 from sklearn import preprocessing
 from sklearn.model_selection import train_test_split
 
-
 DATASET_FILENAME = 'harddrive.csv'
-TESTING = True if __name__ == "__main__" else False
 
 MANUFACTURERS = {'HG':'HGST',
                  'Hi':'Hitachi',
@@ -22,11 +20,14 @@ KNOWN_INDICATIVE_COLUMNS = ['smart_5_raw','smart_10_raw','smart_184_raw','smart_
 def calc_weeks_to_failure(s):
     s = s.reset_index(drop=True)
     one = s[s.eq(1)]
-    if one.empty: return -1
-    return (-s.index + one.index[0])//7
+    if one.empty:
+        return -1
+    else:
+        return (-s.index + one.index[0]) // 7
+
 
 def get_data(filename=DATASET_FILENAME):
-    df = pd.read_csv(filename,parse_dates=['date'],nrows=None if TESTING else None)
+    df = pd.read_csv(filename,parse_dates=['date'])
     print('read data, processing...')
 
     #adding manufacturer info to data
@@ -37,36 +38,44 @@ def get_data(filename=DATASET_FILENAME):
 
     #showing summed failures by manufacturer
     grouped = df.groupby(['manufacturer'])#,'serial_number'])
-    #print(grouped.failure.sum())
+    print(grouped.failure.sum())
 
+    df = pd.DataFrame(grouped.get_group('Seagate'))
 
     #adding failure information per serial number
-    df['weeks_to_failure'] = df.groupby('serial_number').failure.transform(calc_weeks_to_failure)
+    df['week_to_failure'] = df.groupby('serial_number').failure.transform(calc_weeks_to_failure)
+    df = df[df['week_to_failure'] <= 0]
+
 
     # remove data from serial numbers with non-unique dates
     # (possibly not necessary)
     #g.filter(lambda x: x.date.is_unique) #remove
 
-    reduced_df = df[['weeks_to_failure','model','manufacturer'] + KNOWN_INDICATIVE_COLUMNS]
+    reduced_df = df[['week_to_failure','model'] + KNOWN_INDICATIVE_COLUMNS]
     reduced_df = reduced_df.fillna(-0.5) # give numeric value to NaN
 
     return reduced_df
 
 def preprocess_data(df):
     print('feature encoding')
-    features = ['model','manufacturer']
+    features = ['model']
     for feature in features:
         le = preprocessing.LabelEncoder()
         le = le.fit(df[feature])
         df[feature] = le.transform(df[feature])
 
-    enc = preprocessing.OneHotEncoder(categories='auto')
-    weeks_to_failure = np.array(df['weeks_to_failure']).reshape(-1,1)
-    enc.fit_transform(np.array(weeks_to_failure))
-    df['weeks_to_failure'] = weeks_to_failure
+    enc = preprocessing.OneHotEncoder(categories='auto',sparse=False)
+    weeks_to_failure = np.array(df['week_to_failure']).reshape(-1,1)
+    weeks_to_failure = enc.fit_transform(np.array(weeks_to_failure))
 
-    X_train, X_test, y_train, y_test = train_test_split(df.drop(['weeks_to_failure'],axis=1), df['weeks_to_failure'], test_size=0.1)
-    return X_train, X_test, y_train, y_test
+    scaler = preprocessing.MinMaxScaler()
+    columns = KNOWN_INDICATIVE_COLUMNS[:]
+    columns.remove('smart_188_raw')
+    scaler.fit(df[columns])
+    df[columns] = scaler.transform(df[columns])
+
+    X_train, X_test, y_train, y_test = train_test_split(df.drop(['week_to_failure'],axis=1), weeks_to_failure, test_size=0.2)
+    return X_train, X_test, y_train, y_test, enc
 
 def to_tensor(data):
     return torch.Tensor(np.array(pd.DataFrame(data)))
