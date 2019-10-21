@@ -47,10 +47,6 @@ def get_data(filename=DATASET_FILENAME):
     df = df[df['week_to_failure'] <= 0]
 
 
-    # remove data from serial numbers with non-unique dates
-    # (possibly not necessary)
-    #g.filter(lambda x: x.date.is_unique) #remove
-
     reduced_df = df[['week_to_failure','model'] + KNOWN_INDICATIVE_COLUMNS]
     reduced_df = reduced_df.fillna(-0.5) # give numeric value to NaN
 

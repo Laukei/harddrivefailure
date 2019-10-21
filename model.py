@@ -5,9 +5,8 @@ import torch.nn.functional as F
 class Net(nn.Module):
     def __init__(self):
         super().__init__()
-        self.output_size = 2
         self.fc1 = nn.Linear(10,10)
-        self.fc2 = nn.Linear(10,self.output_size)
+        self.fc2 = nn.Linear(10,2)
 
     def forward(self, X):
         X = F.softmax(self.fc1(X))
