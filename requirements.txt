@@ -3,7 +3,7 @@ certifi==2019.9.11
 chardet==3.0.4
 docopt==0.6.2
 idna==2.8
-joblib==0.14.0
+joblib==1.2.0
 Js2Py==0.66
 numpy==1.17.2+mkl
 packaging==19.2
